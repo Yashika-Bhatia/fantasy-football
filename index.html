@@ -540,25 +540,20 @@
     }
   };
   
-  // Updated rule: respond in the SAME LANGUAGE as the user
-  const LANGUAGE_RULE = `\n\nCRITICAL LANGUAGE RULE: You MUST respond in EXACTLY the same language that the user used in their message. 
-- If the user writes in English, you reply in English.
-- If the user writes in Hindi (using Devanagari script or Hinglish/Roman script), you reply in Hindi/Hinglish.
-- If the user writes in Spanish, French, German, etc., reply in that same language.
-- The ONLY exception: the rejection message for off-topic questions must still be in English as specified below.
-- For all on-topic fantasy sports advice, maintain the same sport expertise, but in the user's language.
-- Use natural, fluent expressions in that language (e.g., for Hindi: "नमस्ते, कैसे मदद करूँ?" or "Kya aap apni fantasy team ke liye suggestion lena chahte ho?").
-- Do NOT switch to English unless the user does.
-
-BEHAVIOR RULES:
-1. If the user says a simple greeting like "hello", "hi", "hey", "नमस्ते", "namaste", "hola", etc., respond warmly in the same language and then ask how you can help with fantasy sports for the selected sport.
-2. If the user asks something completely unrelated to this sport, fantasy sports, team management, player statistics, matchups, transfers, or coaching (e.g., recipes, movies, general knowledge, coding, politics), you MUST NOT answer. Instead respond exactly with: "please ask relevant questions. I can't comment on the current question" (this message remains in English regardless of user language).
-3. For all on-topic fantasy sports questions, provide detailed, confident advice ending with "COACH'S VERDICT:" (keep this phrase in English, but the rest in the user's language).`;
+  // STRENGTHENED prompt: explicitly demand "COACH'S VERDICT:" at the end
+  const VERDICT_RULE = `\n\nCRITICAL FORMATTING RULE: Your response MUST end with a line that starts with "COACH'S VERDICT:" followed by your final clear recommendation. This is non-negotiable. Example: "COACH'S VERDICT: Start Mahomes – he's a locked-in QB1 this week." Do NOT forget this line.`;
+  
+  const LANGUAGE_RULE = `\n\nLANGUAGE RULE: You MUST respond in EXACTLY the same language that the user used. If user writes in Hindi (Devanagari or Hinglish), reply in Hindi/Hinglish. If English, reply in English. For any other language, match it. The only exception: the off-topic rejection message must stay in English. Also, the final "COACH'S VERDICT:" line should be kept in English even if the rest is in another language.`;
+  
+  const OFF_TOPIC_RULE = `\n\nBEHAVIOR RULES:
+1. Greetings like "hello", "hi", "नमस्ते", "namaste" – respond warmly in the same language and offer fantasy help.
+2. If the user asks something completely unrelated to this sport, fantasy sports, team management, player stats, matchups, transfers, or coaching (e.g., recipes, movies, coding), respond exactly with: "please ask relevant questions. I can't comment on the current question" (this must be in English).
+3. For all on-topic fantasy questions, give detailed, confident advice and ALWAYS end with "COACH'S VERDICT:" as described above.`;
   
   function getSportSystemPrompt(sportKey) {
-    if (!sportKey) return "You are a helpful fantasy sports coach." + LANGUAGE_RULE;
+    if (!sportKey) return "You are a helpful fantasy sports coach." + VERDICT_RULE + LANGUAGE_RULE + OFF_TOPIC_RULE;
     const base = sportData[sportKey]?.prompt || "";
-    return base + LANGUAGE_RULE;
+    return base + VERDICT_RULE + LANGUAGE_RULE + OFF_TOPIC_RULE;
   }
   
   function getSportChips(sportKey) {
@@ -566,12 +561,10 @@ BEHAVIOR RULES:
     return sportData[sportKey]?.chips || ["Ask for lineup advice", "Transfer tips", "Captaincy choice"];
   }
   
-  // Function to reveal the main UI (call after sport selection)
   function revealMainUI() {
     document.body.classList.remove('main-ui-hidden');
   }
   
-  // Update UI for selected sport (no auto-messages)
   function applySportSelection(sportKey) {
     currentSport = sportKey;
     localStorage.setItem('selectedSport', sportKey);
@@ -580,7 +573,7 @@ BEHAVIOR RULES:
       badgeSpan.innerHTML = `${sportData[sportKey]?.name || sportKey} 🔽`;
     }
     rebuildQuickChips(sportKey);
-    conversationHistory = []; // clear any previous conversation
+    conversationHistory = [];
     revealMainUI();
   }
   
@@ -603,7 +596,6 @@ BEHAVIOR RULES:
     bar.appendChild(changeChip);
   }
   
-  // Sport selection modal – no automatic messages after selection
   function showSportModal() {
     const modalDiv = document.createElement('div');
     modalDiv.className = 'modal-overlay';
@@ -631,7 +623,6 @@ BEHAVIOR RULES:
     });
   }
   
-  // On page load: if sport already saved, just reveal UI (no messages). Otherwise hide UI and show modal.
   function initialize() {
     if (currentSport) {
       revealMainUI();
@@ -701,7 +692,17 @@ BEHAVIOR RULES:
     }
     const data = await response.json();
     if (!data.choices?.[0]?.message) throw new Error('Invalid API response');
-    return data.choices[0].message.content;
+    let reply = data.choices[0].message.content;
+    
+    // --- FALLBACK: ensure COACH'S VERDICT is present ---
+    const verdictRegex = /COACH'S VERDICT:/i;
+    if (!verdictRegex.test(reply)) {
+      // If missing, append a default verdict (use the last sentence or a generic one)
+      const lastSentence = reply.split(/[.!?]/).filter(s => s.trim().length > 10).pop();
+      const defaultVerdict = lastSentence ? `COACH'S VERDICT: ${lastSentence.trim()}` : "COACH'S VERDICT: Follow the advice above for best results.";
+      reply = reply + "\n\n" + defaultVerdict;
+    }
+    return reply;
   }
   
   function appendMessage(role, text) {
@@ -772,7 +773,6 @@ BEHAVIOR RULES:
   
   document.getElementById('currentSportBadge')?.addEventListener('click', () => showSportModal());
   
-  // Start the app
   initialize();
 </script>
 </body>
